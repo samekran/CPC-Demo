@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom cursor animation */
+.agent-cursor {
+  position: fixed;
+  width: 20px;
+  height: 20px;
+  background: #3b82f6;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  animation: pulse 1s infinite;
+}
+
+.agent-cursor::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  right: -5px;
+  bottom: -5px;
+  border: 2px solid #3b82f6;
+  border-radius: 50%;
+  opacity: 0.3;
+  animation: ripple 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* Highlight animation */
+.highlight-pulse {
+  animation: highlightPulse 0.5s ease-in-out;
+}
+
+@keyframes highlightPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Agent log styling */
+.agent-log {
+  border-left: 3px solid #3b82f6;
+  background: linear-gradient(90deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.agent-log-high-confidence {
+  border-left-color: #10b981;
+  background: linear-gradient(90deg, #f0fdf4 0%, #dcfce7 100%);
+}
+
+.agent-log-medium-confidence {
+  border-left-color: #f59e0b;
+  background: linear-gradient(90deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.agent-log-low-confidence {
+  border-left-color: #ef4444;
+  background: linear-gradient(90deg, #fef2f2 0%, #fecaca 100%);
+}

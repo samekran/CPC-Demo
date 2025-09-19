@@ -1,0 +1,16 @@
+{
+  "testCases": [
+    {
+      "id": "telehealth-visit",
+      "name": "Telehealth Visit - Missing Modifier 95",
+      "filename": "telehealth-visit.json",
+      "description": "Virtual visit conducted via video platform but missing required modifier 95."
+    },
+    {
+      "id": "obesity-primary",
+      "name": "Obesity Primary Diagnosis",
+      "filename": "obesity-primary.json",
+      "description": "Visit with obesity incorrectly listed as primary diagnosis instead of secondary."
+    }
+  ]
+}

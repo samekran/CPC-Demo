@@ -1,0 +1,16 @@
+{
+  "icdCodes": [
+    { "code": "I10", "description": "Essential (primary) hypertension" },
+    { "code": "Z51.11", "description": "Encounter for chemotherapy" }
+  ],
+  "emCode": {
+    "code": "99213",
+    "description": "EST PT LEVEL 3 OF 5",
+    "units": "1",
+    "icd10": "I10\nZ51.11",
+    "billChecked": true
+  },
+  "addedMiscServices": [],
+  "notes": "Patient seen via video platform for routine follow-up. Good connection quality maintained throughout visit.",
+  "diagnosisText": "Patient seen in office today for hypertension follow-up via Zoom video visit. Patient reports good medication compliance and no new symptoms. Blood pressure well-controlled on current medications. No medication changes needed. Patient seen via video platform with good connection quality. Continue current antihypertensive regimen. Follow up in 3 months. Patient will schedule in-person visit if any issues arise."
+}

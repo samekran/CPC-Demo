@@ -1,0 +1,17 @@
+{
+  "icdCodes": [
+    { "code": "E66.9", "description": "Obesity, unspecified" },
+    { "code": "E11.9", "description": "Type 2 diabetes mellitus without complications" },
+    { "code": "I10", "description": "Essential (primary) hypertension" }
+  ],
+  "emCode": {
+    "code": "99213",
+    "description": "EST PT LEVEL 3 OF 5",
+    "units": "1",
+    "icd10": "E66.9\nE11.9\nI10",
+    "billChecked": true
+  },
+  "addedMiscServices": [],
+  "notes": "Routine follow-up for diabetes management. Patient reports good medication compliance and stable blood sugars.",
+  "diagnosisText": "Patient seen in office today for routine follow-up for diabetes management. 45-year-old male with type 2 diabetes and obesity presents for routine follow-up. Patient reports good medication compliance and stable blood sugars. Diabetes well-controlled on metformin. BMI 32.5 (obese). Blood pressure slightly elevated at 138/85. No medication changes needed. Continue current diabetes regimen. Recommend weight loss program. Follow up in 3 months."
+}
