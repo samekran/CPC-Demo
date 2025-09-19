@@ -17,6 +17,7 @@ interface IcdCode {
 interface EmCode {
   code: string;
   description: string;
+  modifiers: string;
   units: string;
   icd10: string;
   billChecked?: boolean;
@@ -159,6 +160,7 @@ export default function MedicalBillingInterface() {
   const [emCode, setEmCode] = useState<EmCode>({
     code: '99214',
     description: 'EST PT LEVEL 4 OF 5',
+    modifiers: '',
     units: '1',
     icd10: 'E11.9\nE78.5\nI10'
   });
@@ -314,15 +316,34 @@ export default function MedicalBillingInterface() {
     const element = document.getElementById(elementId);
     if (element) {
       const rect = element.getBoundingClientRect();
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
+      const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+      const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+      
+      // Calculate position relative to viewport, accounting for scroll
+      const x = rect.left + rect.width / 2 + scrollX;
+      const y = rect.top + rect.height / 2 + scrollY;
       
       setCursorPosition({ x, y, visible: true });
       setHighlightedElement(elementId);
       
+      // Scroll the element into view smoothly
+      element.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center', 
+        inline: 'center' 
+      });
+      
+      // Add a click effect by temporarily adding a class
+      setTimeout(() => {
+        element.classList.add('agent-click-effect');
+        setTimeout(() => {
+          element.classList.remove('agent-click-effect');
+        }, 200);
+      }, 1000);
+      
       setTimeout(() => {
         if (callback) callback();
-      }, 1000);
+      }, 1500); // Increased delay to allow for scroll animation
     }
   };
 
@@ -345,17 +366,17 @@ export default function MedicalBillingInterface() {
       },
       {
         action: () => {
-          addAgentLog("Checking E&M code for modifier 95", "Telehealth visits require modifier 95 on E/M codes", 1.0);
-          moveCursorToElement('em-code-input', () => {
-            addAgentLog("Found missing modifier 95 on E/M code", "E/M codes for telehealth must have modifier 95", 1.0);
+          addAgentLog("Checking E&M modifiers for modifier 95", "Telehealth visits require modifier 95 on E/M codes", 1.0);
+          moveCursorToElement('em-modifiers-input', () => {
+            addAgentLog("Found missing modifier 95 in E/M modifiers", "E/M codes for telehealth must have modifier 95", 1.0);
           });
         },
         delay: 2000
       },
       {
         action: () => {
-          addAgentLog("Adding modifier 95 to E/M code", "Required for proper telehealth billing", 1.0);
-          setEmCode(prev => ({ ...prev, code: prev.code + '-95' }));
+          addAgentLog("Adding modifier 95 to E/M modifiers", "Required for proper telehealth billing", 1.0);
+          setEmCode(prev => ({ ...prev, modifiers: '95' }));
           clearHighlight();
         },
         delay: 1500
@@ -420,19 +441,30 @@ export default function MedicalBillingInterface() {
     agentStepRef.current = 0;
 
     const executeStep = (stepIndex: number) => {
-      if (!agentStateRef.current.isRunning || agentStateRef.current.isPaused) {
+      // Check if agent should stop before each step
+      if (!agentStateRef.current.isRunning) {
+        return;
+      }
+
+      // If paused, wait and try again
+      if (agentStateRef.current.isPaused) {
+        agentTimeoutRef.current = setTimeout(() => {
+          executeStep(stepIndex);
+        }, 100);
         return;
       }
 
       if (stepIndex >= testCaseActions.length) {
-        // Restart from the beginning to run continuously
-        agentStepRef.current = 0;
-        setAgentState(prev => {
-          const nextState = { ...prev, currentStep: 1 };
-          agentStateRef.current = nextState;
-          return nextState;
-        });
-        executeStep(0);
+        // Stop the agent after completing all steps
+        const stopState = {
+          isRunning: false,
+          isPaused: false,
+          currentStep: testCaseActions.length,
+          totalSteps: testCaseActions.length
+        };
+        agentStateRef.current = stopState;
+        setAgentState(stopState);
+        clearHighlight();
         return;
       }
 
@@ -447,7 +479,10 @@ export default function MedicalBillingInterface() {
       step.action();
 
       agentTimeoutRef.current = setTimeout(() => {
-        executeStep(stepIndex + 1);
+        // Double-check if still running before proceeding
+        if (agentStateRef.current.isRunning) {
+          executeStep(stepIndex + 1);
+        }
       }, step.delay);
     };
 
@@ -462,21 +497,27 @@ export default function MedicalBillingInterface() {
     });
     if (agentTimeoutRef.current) {
       clearTimeout(agentTimeoutRef.current);
+      agentTimeoutRef.current = null;
     }
   };
 
   const stopAgent = () => {
+    // Clear any pending timeouts
+    if (agentTimeoutRef.current) {
+      clearTimeout(agentTimeoutRef.current);
+      agentTimeoutRef.current = null;
+    }
+    
     const resetState = {
       isRunning: false,
       isPaused: false,
       currentStep: 0,
       totalSteps: 0
     };
+    
+    // Force immediate update of ref
     agentStateRef.current = resetState;
     setAgentState(resetState);
-    if (agentTimeoutRef.current) {
-      clearTimeout(agentTimeoutRef.current);
-    }
     clearHighlight();
   };
 
@@ -755,8 +796,13 @@ export default function MedicalBillingInterface() {
                   </div>
                   <div className="flex items-center space-x-2">
                     <input
+                      id="em-modifiers-input"
                       type="text"
-                      className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
+                      value={emCode.modifiers}
+                      onChange={(e) => setEmCode({...emCode, modifiers: e.target.value})}
+                      className={`border border-gray-300 rounded px-2 py-1 text-sm w-full ${
+                        highlightedElement === 'em-modifiers-input' ? 'ring-4 ring-yellow-400 ring-opacity-50 bg-yellow-50' : ''
+                      }`}
                       placeholder=""
                     />
                     <HelpCircle size={16} className="text-gray-400" />

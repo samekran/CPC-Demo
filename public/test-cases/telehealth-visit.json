@@ -6,6 +6,7 @@
   "emCode": {
     "code": "99213",
     "description": "EST PT LEVEL 3 OF 5",
+    "modifiers": "",
     "units": "1",
     "icd10": "I10\nZ51.11",
     "billChecked": true

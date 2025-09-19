@@ -5,15 +5,16 @@
 /* Custom cursor animation */
 .agent-cursor {
   position: fixed;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   background: #3b82f6;
   border-radius: 50%;
   pointer-events: none;
-  z-index: 9999;
+  z-index: 99999;
   transition: all 0.3s ease;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.8);
   animation: pulse 1s infinite;
+  border: 3px solid white;
 }
 
 .agent-cursor::before {
@@ -51,6 +52,35 @@
   }
 }
 
+/* Cursor trail effect */
+.agent-cursor::after {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  right: -8px;
+  bottom: -8px;
+  border: 2px solid #3b82f6;
+  border-radius: 50%;
+  opacity: 0.2;
+  animation: trail 2s infinite;
+}
+
+@keyframes trail {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.2;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.1;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
 /* Highlight animation */
 .highlight-pulse {
   animation: highlightPulse 0.5s ease-in-out;
@@ -62,6 +92,24 @@
   }
   50% {
     transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Agent click effect */
+.agent-click-effect {
+  animation: agentClick 0.2s ease-in-out;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3) !important;
+}
+
+@keyframes agentClick {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.98);
   }
   100% {
     transform: scale(1);
