@@ -39,6 +39,7 @@ interface AgentLog {
   reasoning: string;
   confidence: number;
   step: number;
+  nestedStep?: string;
 }
 
 interface TreeNode {
@@ -180,11 +181,19 @@ export default function MedicalBillingInterface() {
     isRunning: false,
     isPaused: false,
     currentStep: 0,
-    totalSteps: 0
+    totalSteps: 0,
+    phase: 'idle' as 'idle' | 'analyzing' | 'proposing' | 'executing' | 'completed'
   });
   const [agentLogs, setAgentLogs] = useState<AgentLog[]>([]);
   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0, visible: false });
   const [highlightedElement, setHighlightedElement] = useState<string | null>(null);
+  const [proposedChanges, setProposedChanges] = useState<{
+    title: string;
+    description: string;
+    reasoning: string;
+    confidence: number;
+    changes: any[];
+  } | null>(null);
   const agentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const agentStepRef = useRef<number>(0);
   const agentStateRef = useRef(agentState);
@@ -300,14 +309,20 @@ export default function MedicalBillingInterface() {
   };
 
   // Agent functions
-  const addAgentLog = (action: string, reasoning: string, confidence: number = 1.0) => {
+  const addAgentLog = (action: string, reasoning: string, confidence: number = 1.0, phase?: string) => {
+    const currentPhase = phase || agentState.phase;
+    const phaseNumber = currentPhase === 'analyzing' ? 1 : currentPhase === 'executing' ? 2 : 0;
+    const stepNumber = agentStepRef.current + 1;
+    const nestedStep = phaseNumber > 0 ? `${phaseNumber}.${stepNumber}` : `${stepNumber}`;
+    
     const logEntry: AgentLog = {
       id: Date.now(),
       timestamp: new Date().toLocaleTimeString(),
       action,
       reasoning,
       confidence,
-      step: agentStepRef.current
+      step: agentStepRef.current,
+      nestedStep
     };
     setAgentLogs(prev => [...prev, logEntry]);
   };
@@ -354,55 +369,94 @@ export default function MedicalBillingInterface() {
 
   const agentActions = {
     // Test Case 1: Telehealth - Add modifier 95
-    telehealth: [
+    telehealth: {
+      analysis: [
       {
         action: () => {
-          addAgentLog("Analyzing diagnosis text for telehealth indicators", "Looking for video platform mentions and telehealth keywords", 0.95);
+            addAgentLog("Analyzing diagnosis text for telehealth indicators", "Looking for video platform mentions and telehealth keywords", 0.95, 'analyzing');
           moveCursorToElement('diagnosis-textarea', () => {
-            addAgentLog("Found telehealth indicators in diagnosis text", "Detected telehealth visit context", 0.95);
+              addAgentLog("Found telehealth indicators in diagnosis text", "Detected telehealth visit context", 0.95, 'analyzing');
           });
         },
         delay: 2000
       },
       {
         action: () => {
-          addAgentLog("Checking E&M modifiers for modifier 95", "Telehealth visits require modifier 95 on E/M codes", 1.0);
-          moveCursorToElement('em-modifiers-input', () => {
-            addAgentLog("Found missing modifier 95 in E/M modifiers", "E/M codes for telehealth must have modifier 95", 1.0);
+            addAgentLog("Checking E&M modifiers for modifier 95", "Telehealth visits require modifier 95 on E/M codes", 1.0, 'analyzing');
+            moveCursorToElement('em-modifiers-input', () => {
+              addAgentLog("Found missing modifier 95 in E/M modifiers", "E/M codes for telehealth must have modifier 95", 1.0, 'analyzing');
           });
         },
         delay: 2000
+        }
+      ],
+      proposal: {
+        title: "Add Modifier 95 for Telehealth Visit",
+        description: "This visit was conducted via video platform and requires modifier 95 on the E/M code for proper billing.",
+        reasoning: "Telehealth visits must have modifier 95 to indicate the service was provided via interactive audio and video telecommunications technology.",
+        confidence: 0.95,
+        changes: [
+          {
+            type: "modifier",
+            field: "emCode.modifiers",
+            value: "95",
+            description: "Add modifier 95 to E/M code"
+          }
+        ]
       },
+      execution: [
       {
         action: () => {
-          addAgentLog("Adding modifier 95 to E/M modifiers", "Required for proper telehealth billing", 1.0);
-          setEmCode(prev => ({ ...prev, modifiers: '95' }));
+            addAgentLog("Adding modifier 95 to E/M modifiers", "Required for proper telehealth billing", 1.0, 'executing');
+            setEmCode(prev => ({ ...prev, modifiers: '95' }));
           clearHighlight();
         },
         delay: 1500
       },
       {
         action: () => {
-          addAgentLog("Telehealth billing correction complete", "E/M code now has required modifier 95", 1.0);
+            addAgentLog("Telehealth billing correction complete", "E/M code now has required modifier 95", 1.0, 'executing');
         },
         delay: 1000
       }
-    ],
+      ]
+    },
     
     // Test Case 2: Obesity - Move to secondary diagnosis
-    obesity: [
+    obesity: {
+      analysis: [
       {
         action: () => {
-          addAgentLog("Analyzing ICD-10 codes order", "Checking if obesity is incorrectly listed as primary diagnosis", 0.9);
+            addAgentLog("Analyzing ICD-10 codes order", "Checking if obesity is incorrectly listed as primary diagnosis", 0.9, 'analyzing');
           moveCursorToElement('icd-codes-section', () => {
-            addAgentLog("Found obesity (E66.9) as primary diagnosis", "Obesity should typically be secondary to the main condition", 0.9);
+              addAgentLog("Found obesity (E66.9) as primary diagnosis", "Obesity should typically be secondary to the main condition", 0.9, 'analyzing');
           });
         },
         delay: 2000
+        }
+      ],
+      proposal: {
+        title: "Reorder Diagnosis Codes",
+        description: "Obesity is currently listed as the primary diagnosis but should be secondary to the main condition (diabetes).",
+        reasoning: "The primary diagnosis should reflect the main reason for the visit. Diabetes management is the primary focus, with obesity as a contributing factor.",
+        confidence: 0.9,
+        changes: [
+          {
+            type: "reorder",
+            field: "icdCodes",
+            value: [
+              { code: 'E11.9', description: 'Type 2 diabetes mellitus without complications' },
+              { code: 'E66.9', description: 'Obesity, unspecified' },
+              { code: 'I10', description: 'Essential (primary) hypertension' }
+            ],
+            description: "Move diabetes to primary position, obesity to secondary"
+          }
+        ]
       },
+      execution: [
       {
         action: () => {
-          addAgentLog("Reordering diagnosis codes", "Moving obesity to secondary position, diabetes to primary", 1.0);
+            addAgentLog("Reordering diagnosis codes", "Moving obesity to secondary position, diabetes to primary", 1.0, 'executing');
           const reorderedCodes = [
             { code: 'E11.9', description: 'Type 2 diabetes mellitus without complications' },
             { code: 'E66.9', description: 'Obesity, unspecified' },
@@ -415,31 +469,34 @@ export default function MedicalBillingInterface() {
       },
       {
         action: () => {
-          addAgentLog("Diagnosis reordering complete", "Primary diagnosis now reflects the main reason for visit (diabetes)", 1.0);
+            addAgentLog("Diagnosis reordering complete", "Primary diagnosis now reflects the main reason for visit (diabetes)", 1.0, 'executing');
         },
         delay: 1000
       }
     ]
+    }
   };
 
   const runAgent = () => {
     if (agentStateRef.current.isRunning) return;
 
-    const testCaseActions = selectedTestCase === 'telehealth-visit' ? agentActions.telehealth : 
-                           selectedTestCase === 'obesity-primary' ? agentActions.obesity : 
-                           agentActions.telehealth; // fallback
+    const testCaseData = selectedTestCase === 'telehealth-visit' ? agentActions.telehealth : 
+                        selectedTestCase === 'obesity-primary' ? agentActions.obesity : 
+                        agentActions.telehealth; // fallback
 
     const initialAgentState = {
       isRunning: true,
       isPaused: false,
       currentStep: 0,
-      totalSteps: testCaseActions.length
+      totalSteps: testCaseData.analysis.length,
+      phase: 'analyzing' as const
     };
 
     agentStateRef.current = initialAgentState;
     setAgentState(initialAgentState);
 
     setAgentLogs([]);
+    setProposedChanges(null);
     agentStepRef.current = 0;
 
     const executeStep = (stepIndex: number) => {
@@ -456,16 +513,17 @@ export default function MedicalBillingInterface() {
         return;
       }
 
-      if (stepIndex >= testCaseActions.length) {
-        // Stop the agent after completing all steps
-        const stopState = {
+      if (stepIndex >= testCaseData.analysis.length) {
+        // Analysis complete, show proposal
+        setProposedChanges(testCaseData.proposal);
+        const proposalState = {
+          ...agentStateRef.current,
           isRunning: false,
-          isPaused: false,
-          currentStep: testCaseActions.length,
-          totalSteps: testCaseActions.length
+          phase: 'proposing' as const,
+          currentStep: testCaseData.analysis.length
         };
-        agentStateRef.current = stopState;
-        setAgentState(stopState);
+        agentStateRef.current = proposalState;
+        setAgentState(proposalState);
         clearHighlight();
         return;
       }
@@ -477,13 +535,13 @@ export default function MedicalBillingInterface() {
         return nextState;
       });
 
-      const step = testCaseActions[stepIndex];
+      const step = testCaseData.analysis[stepIndex];
       step.action();
 
       agentTimeoutRef.current = setTimeout(() => {
         // Double-check if still running before proceeding
         if (agentStateRef.current.isRunning) {
-          executeStep(stepIndex + 1);
+        executeStep(stepIndex + 1);
         }
       }, step.delay);
     };
@@ -503,6 +561,88 @@ export default function MedicalBillingInterface() {
     }
   };
 
+  const approveChanges = () => {
+    if (!proposedChanges) return;
+
+    const testCaseData = selectedTestCase === 'telehealth-visit' ? agentActions.telehealth : 
+                        selectedTestCase === 'obesity-primary' ? agentActions.obesity : 
+                        agentActions.telehealth;
+
+    addAgentLog("Changes approved by user", "Proceeding with implementation", 1.0, 'proposing');
+    
+    const executionState = {
+      isRunning: true,
+      isPaused: false,
+      currentStep: 0,
+      totalSteps: testCaseData.execution.length,
+      phase: 'executing' as const
+    };
+
+    agentStateRef.current = executionState;
+    setAgentState(executionState);
+    setProposedChanges(null);
+
+    const executeChanges = (stepIndex: number) => {
+      if (!agentStateRef.current.isRunning) {
+        return;
+      }
+
+      if (agentStateRef.current.isPaused) {
+        agentTimeoutRef.current = setTimeout(() => {
+          executeChanges(stepIndex);
+        }, 100);
+        return;
+      }
+
+      if (stepIndex >= testCaseData.execution.length) {
+        const completedState = {
+          isRunning: false,
+          isPaused: false,
+          currentStep: testCaseData.execution.length,
+          totalSteps: testCaseData.execution.length,
+          phase: 'completed' as const
+        };
+        agentStateRef.current = completedState;
+        setAgentState(completedState);
+        clearHighlight();
+        return;
+      }
+
+      agentStepRef.current = stepIndex;
+      setAgentState(prev => {
+        const nextState = { ...prev, currentStep: stepIndex + 1 };
+        agentStateRef.current = nextState;
+        return nextState;
+      });
+
+      const step = testCaseData.execution[stepIndex];
+      step.action();
+
+      agentTimeoutRef.current = setTimeout(() => {
+        if (agentStateRef.current.isRunning) {
+          executeChanges(stepIndex + 1);
+        }
+      }, step.delay);
+    };
+
+    executeChanges(0);
+  };
+
+  const rejectChanges = () => {
+    addAgentLog("Changes rejected by user", "No modifications will be made", 1.0, 'proposing');
+    setProposedChanges(null);
+    const resetState = {
+      isRunning: false,
+      isPaused: false,
+      currentStep: 0,
+      totalSteps: 0,
+      phase: 'idle' as const
+    };
+    agentStateRef.current = resetState;
+    setAgentState(resetState);
+    clearHighlight();
+  };
+
   const stopAgent = () => {
     // Clear any pending timeouts
     if (agentTimeoutRef.current) {
@@ -514,12 +654,14 @@ export default function MedicalBillingInterface() {
       isRunning: false,
       isPaused: false,
       currentStep: 0,
-      totalSteps: 0
+      totalSteps: 0,
+      phase: 'idle' as const
     };
     
     // Force immediate update of ref
     agentStateRef.current = resetState;
     setAgentState(resetState);
+    setProposedChanges(null);
     clearHighlight();
   };
 
@@ -534,17 +676,17 @@ export default function MedicalBillingInterface() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Agent Cursor */}
-      {cursorPosition.visible && (
-        <div
-          className="agent-cursor"
-          style={{
-            left: cursorPosition.x - 10,
-            top: cursorPosition.y - 10,
-          }}
-        />
-      )}
-      
+        {/* Agent Cursor */}
+        {cursorPosition.visible && (
+          <div
+            className="agent-cursor"
+            style={{
+              left: cursorPosition.x - 10,
+              top: cursorPosition.y - 10,
+            }}
+          />
+        )}
+        
       {/* Main EMR Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
@@ -1093,30 +1235,37 @@ export default function MedicalBillingInterface() {
               <Bot className="w-6 h-6 mr-3 text-blue-600" />
               <h3 className="text-lg font-semibold text-gray-800">AI Agent Extension</h3>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">
-                Step {agentState.currentStep} of {agentState.totalSteps}
-              </span>
-              <div className="w-32 bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: agentState.totalSteps > 0 ? `${(agentState.currentStep / agentState.totalSteps) * 100}%` : '0%' }}
-                />
-              </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-600">
+              {agentState.phase === 'analyzing' && `Step ${agentState.currentStep} of ${agentState.totalSteps}`}
+              {agentState.phase === 'proposing' && 'Awaiting Approval'}
+              {agentState.phase === 'executing' && `Executing ${agentState.currentStep} of ${agentState.totalSteps}`}
+              {agentState.phase === 'completed' && 'Completed'}
+              {agentState.phase === 'idle' && 'Ready'}
+            </span>
+            <div className="w-32 bg-gray-200 rounded-full h-2">
+              <div 
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  agentState.phase === 'completed' ? 'bg-green-600' : 'bg-blue-600'
+                }`}
+                style={{ width: agentState.totalSteps > 0 ? `${(agentState.currentStep / agentState.totalSteps) * 100}%` : '0%' }}
+              />
             </div>
+          </div>
           </div>
           
           <div className="flex items-center space-x-3">
-            <button
-              onClick={runAgent}
-              disabled={agentState.isRunning}
-              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
-            >
-              <Play className="w-4 h-4 mr-2" />
-              {agentState.isRunning ? 'Running...' : 'Start Agent'}
-            </button>
+            {agentState.phase === 'idle' && (
+              <button
+                onClick={runAgent}
+                className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
+              >
+                <Play className="w-4 h-4 mr-2" />
+                Start Analysis
+              </button>
+            )}
             
-            {agentState.isRunning && (
+            {agentState.phase === 'analyzing' && agentState.isRunning && (
               <button
                 onClick={pauseAgent}
                 className="bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
@@ -1135,14 +1284,15 @@ export default function MedicalBillingInterface() {
               </button>
             )}
             
-            <button
-              onClick={stopAgent}
-              disabled={!agentState.isRunning}
-              className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
-            >
-              <Square className="w-4 h-4 mr-2" />
-              Stop
-            </button>
+            {(agentState.isRunning || agentState.phase === 'proposing' || agentState.phase === 'executing') && (
+              <button
+                onClick={stopAgent}
+                className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
+              >
+                <Square className="w-4 h-4 mr-2" />
+                Stop
+              </button>
+            )}
           </div>
           
           <div className="mt-2 text-sm text-gray-600">
@@ -1152,60 +1302,105 @@ export default function MedicalBillingInterface() {
           </div>
         </div>
 
-        {/* Decision Logging */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-800 flex items-center">
-                <Bot className="w-5 h-5 mr-2" />
-                Agent Decision Log
-              </h3>
+        {/* Approval Interface */}
+        {agentState.phase === 'proposing' && proposedChanges && (
+          <div className="border-t border-gray-200 p-4 bg-yellow-50">
+            <div className="mb-4">
+              <h4 className="text-lg font-semibold text-gray-800 mb-2">🤖 Agent Proposal</h4>
+              <div className="bg-white rounded-lg p-4 border border-yellow-200">
+                <div className="flex items-start justify-between mb-3">
+                  <h5 className="font-medium text-gray-800">{proposedChanges.title}</h5>
+                  <span className="text-sm text-gray-500">
+                    {Math.round(proposedChanges.confidence * 100)}% confidence
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 mb-3">{proposedChanges.description}</p>
+                <div className="bg-blue-50 rounded p-3 mb-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Reasoning:</strong> {proposedChanges.reasoning}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <h6 className="font-medium text-gray-700 text-sm">Proposed Changes:</h6>
+                  {proposedChanges.changes.map((change, index) => (
+                    <div key={index} className="text-sm text-gray-600 bg-gray-50 rounded p-2">
+                      • {change.description}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex space-x-3">
               <button
-                onClick={() => setAgentLogs([])}
-                className="text-xs text-gray-500 hover:text-gray-700"
+                onClick={approveChanges}
+                className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
               >
-                Clear Log
+                ✓ Approve Changes
+              </button>
+              <button
+                onClick={rejectChanges}
+                className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
+              >
+                ✗ Reject Changes
               </button>
             </div>
           </div>
-          
-          <div className="p-4 space-y-3">
-            {agentLogs.length === 0 ? (
-              <div className="text-center text-gray-500 py-8">
-                <Bot className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                <p className="text-sm">No agent actions yet</p>
-                <p className="text-xs">Start the agent to see decision logs</p>
-              </div>
-            ) : (
-              agentLogs.map((log) => (
-                <div
-                  key={log.id}
-                  className={`agent-log p-3 rounded-lg ${
-                    log.confidence >= 0.8 
-                      ? 'agent-log-high-confidence' 
-                      : log.confidence >= 0.6 
-                      ? 'agent-log-medium-confidence' 
-                      : 'agent-log-low-confidence'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="text-xs font-medium text-gray-600">
-                      Step {log.step + 1} • {log.timestamp}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {Math.round(log.confidence * 100)}% confidence
-                    </div>
+        )}
+
+        {/* Decision Logging */}
+        <div className="flex-1 overflow-y-auto">
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+              <Bot className="w-5 h-5 mr-2" />
+              Agent Decision Log
+            </h3>
+            <button
+              onClick={() => setAgentLogs([])}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Clear Log
+            </button>
+          </div>
+        </div>
+        
+        <div className="p-4 space-y-3">
+          {agentLogs.length === 0 ? (
+            <div className="text-center text-gray-500 py-8">
+              <Bot className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">No agent actions yet</p>
+              <p className="text-xs">Start the agent to see decision logs</p>
+            </div>
+          ) : (
+            agentLogs.map((log) => (
+              <div
+                key={log.id}
+                className={`agent-log p-3 rounded-lg ${
+                  log.confidence >= 0.8 
+                    ? 'agent-log-high-confidence' 
+                    : log.confidence >= 0.6 
+                    ? 'agent-log-medium-confidence' 
+                    : 'agent-log-low-confidence'
+                }`}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="text-xs font-medium text-gray-600">
+                    Step {log.nestedStep || (log.step + 1)} • {log.timestamp}
                   </div>
-                  <div className="text-sm font-medium text-gray-800 mb-1">
-                    {log.action}
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    {log.reasoning}
+                  <div className="text-xs text-gray-500">
+                    {Math.round(log.confidence * 100)}% confidence
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+                <div className="text-sm font-medium text-gray-800 mb-1">
+                  {log.action}
+                </div>
+                <div className="text-xs text-gray-600">
+                  {log.reasoning}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
         </div>
       </div>
     </div>
