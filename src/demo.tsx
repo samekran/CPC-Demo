@@ -425,7 +425,9 @@ export default function MedicalBillingInterface() {
   const runAgent = () => {
     if (agentStateRef.current.isRunning) return;
 
-    const testCaseActions = selectedTestCase === 'telehealth-visit' ? agentActions.telehealth : agentActions.obesity;
+    const testCaseActions = selectedTestCase === 'telehealth-visit' ? agentActions.telehealth : 
+                           selectedTestCase === 'obesity-primary' ? agentActions.obesity : 
+                           agentActions.telehealth; // fallback
 
     const initialAgentState = {
       isRunning: true,
@@ -1144,7 +1146,9 @@ export default function MedicalBillingInterface() {
           </div>
           
           <div className="mt-2 text-sm text-gray-600">
-            {selectedTestCase === 'telehealth-visit' ? 'Test Case 1: Telehealth - Missing Modifier 95' : 'Test Case 2: Obesity - Primary Diagnosis Fix'}
+            {selectedTestCase === 'telehealth-visit' ? 'Test Case 1: Telehealth - Missing Modifier 95' : 
+             selectedTestCase === 'obesity-primary' ? 'Test Case 2: Obesity - Primary Diagnosis Fix' : 
+             'Select a test case'}
           </div>
         </div>
 
